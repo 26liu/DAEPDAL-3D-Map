@@ -85,7 +85,7 @@ def load_raw_data():
     边界条件处理：云端环境 (如 Linux 容器) 无法识别 Windows 绝对路径。
     因此强制使用相对路径 (Relative Path)，要求 CSV 文件必须与 app.py 位于 GitHub 仓库的同一层级。
     """
-    file_name = "Simulated_UAV_Meteorological_Data_20260503.csv"
+    file_name = "UAV_Meteorological_Data_20260503.csv"
     return pd.read_csv(file_name, encoding='utf-8-sig')
 
 
