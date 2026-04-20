@@ -4,12 +4,10 @@ import plotly.express as px
 import os
 
 # =====================================================================
-# 1. Configuration Globale & i18n (全局配置与国际化)
+# 1. Configuration Globale & i18n (多语言配置)
 # =====================================================================
 st.set_page_config(page_title="Plateforme D.Æᵖ.D.A.L.", layout="wide")
 
-# 语言资源字典 (Language Resource Dictionary)
-# 集中管理所有静态文本，确保 UI 的完全解耦
 TEXTS = {
     "Français": {
         "main_title": "D.Æᵖ.D.A.L. - Plateforme de Diagnostic de l'Air Local 3D",
@@ -27,7 +25,7 @@ TEXTS = {
         "title_2d_fig": "Distribution horizontale",
         "warn_no_data": "⚠️ Aucune donnée dans cette plage.",
         "expander_raw": "📊 Voir les Données Brutes",
-        "btn_download": "📥 Télécharger le jeu de données complet",  # 法语下载提示
+        "btn_download": "📥 Télécharger le jeu de données complet",
         "err_file": "⚠️ Fichier de données introuvable sur le serveur !",
         "metric_names": {
             '标准时间': 'Horodatage',
@@ -59,7 +57,7 @@ TEXTS = {
         "title_2d_fig": "Horizontal distribution",
         "warn_no_data": "⚠️ No data in this range.",
         "expander_raw": "📊 View Raw Data Logs",
-        "btn_download": "📥 Download Complete Dataset",  # 英语下载提示
+        "btn_download": "📥 Download Complete Dataset",
         "err_file": "⚠️ Data file not found on server!",
         "metric_names": {
             '标准时间': 'Timestamp',
@@ -74,44 +72,68 @@ TEXTS = {
             'NO2(ug/m3)': 'NO2 (µg/m³)',
             'SO2(ug/m3)': 'SO2 (µg/m³)'
         }
+    },
+    "Chinois": {
+        "main_title": "D.Æᵖ.D.A.L. - 三维局部空气质量诊断平台",
+        "desc": "本系统可视化了 D.Æᵖ.D.A.L. 无人机在执行任务期间采集的多维气象和污染数据（该无人机采用 V 型尾翼四旋翼配置，针对空间利用率和便携性进行了优化）。",
+        "sidebar_flight": "⚙️ 飞行参数",
+        "sidebar_select_ind": "选择要显示的指标：",
+        "sidebar_slice": "🔪 横截面分析",
+        "sidebar_analyze": "分析特定高度的分布：",
+        "slider_quick": "快速选择 (m)",
+        "input_min": "精确最小值 (m)",
+        "input_max": "精确最大值 (m)",
+        "err_min_max": "错误：最小值 > 最大值",
+        "title_3d": "3D 映射：",
+        "title_2d": "2D 横截面 (高度：{min:.1f}m - {max:.1f}m)",
+        "title_2d_fig": "目标高度的水平分布",
+        "warn_no_data": "⚠️ 此范围内无数据。",
+        "expander_raw": "📊 查看原始数据日志",
+        "btn_download": "📥 下载完整数据集",
+        "err_file": "⚠️ 服务器上找不到数据文件！",
+        "metric_names": {
+            '标准时间': '标准时间',
+            '经度(Longitude)': '经度',
+            '纬度(Latitude)': '纬度',
+            '高度(Altitude_m)': '高度 (m)',
+            '大气温度(℃)': '大气温度 (°C)',
+            '大气湿度(%)': '大气湿度 (%)',
+            '大气压(hPa)': '大气压 (hPa)',
+            '工况PM2.5(ug/m3)': 'PM2.5 (µg/m³)',
+            '工况PM10(ug/m3)': 'PM10 (µg/m³)',
+            'NO2(ug/m3)': 'NO2 (µg/m³)',
+            'SO2(ug/m3)': 'SO2 (µg/m³)'
+        }
     }
 }
 
 
 @st.cache_data
 def load_raw_data():
-    """
-    数据加载模块。
-    边界条件处理：云端环境 (如 Linux 容器) 无法识别 Windows 绝对路径。
-    因此强制使用相对路径 (Relative Path)，要求 CSV 文件必须与 app.py 位于 GitHub 仓库的同一层级。
-    """
     file_name = "UAV_Meteorological_Data_20260503.csv"
     return pd.read_csv(file_name, encoding='utf-8-sig')
 
 
 # =====================================================================
-# 3. Sidebar (侧边栏与状态机逻辑)
+# 3. Sidebar (侧边栏)
 # =====================================================================
-# 云端图片加载机制：同样切换为相对路径
 logo_name = "logo.jpg"
 if os.path.exists(logo_name):
     st.sidebar.image(logo_name, use_container_width=True)
 
-# 语言监听器
-selected_lang = st.sidebar.radio("🌐 Langue / Language", ["Français", "English"], index=0)
+# 语言选择器：默认法语 (index=0)
+selected_lang = st.sidebar.radio("🌐 Langue / Language / 语言", ["Français", "English", "Chinois"], index=0)
 t = TEXTS[selected_lang]
 
 try:
     raw_df = load_raw_data()
-    # 动态列名映射：基于所选语言重写 DataFrame 列头
+    # 动态映射列名
     df = raw_df.rename(columns=t["metric_names"])
 except Exception:
     st.error(t["err_file"])
     st.stop()
 
-# 3D 渲染降采样（提高前端 WebGL 帧率）
 df_sample = df.iloc[::5, :]
-
 st.sidebar.markdown("---")
 st.sidebar.header(t["sidebar_flight"])
 available_metrics = list(t["metric_names"].values())[4:]
@@ -119,74 +141,46 @@ selected_metric = st.sidebar.selectbox("Metric", available_metrics, label_visibi
 
 st.sidebar.markdown("---")
 st.sidebar.header(t["sidebar_slice"])
-# 动态提取高度极值，防止硬编码导致的数据越界
 abs_min_alt = float(df[t['metric_names']['高度(Altitude_m)']].min())
 abs_max_alt = float(df[t['metric_names']['高度(Altitude_m)']].max())
 
-range_slider = st.sidebar.slider(t["slider_quick"], abs_min_alt, abs_max_alt, (abs_min_alt + 50.0, abs_min_alt + 60.0),
-                                 step=0.1)
+range_slider = st.sidebar.slider(t["slider_quick"], abs_min_alt, abs_max_alt, (abs_min_alt + 50.0, abs_min_alt + 60.0), step=0.1)
 col1, col2 = st.sidebar.columns(2)
 with col1:
     alt_min = st.number_input(t["input_min"], abs_min_alt, abs_max_alt, range_slider[0], step=0.1, format="%.1f")
 with col2:
     alt_max = st.number_input(t["input_max"], abs_min_alt, abs_max_alt + 50.0, range_slider[1], step=0.1, format="%.1f")
 
-# 逻辑自校正：自动修复 Min > Max 的误输入
 final_range = (min(alt_min, alt_max), max(alt_min, alt_max))
 
 # =====================================================================
-# 4. Rendering (主页面 3D 与 2D 渲染)
+# 4. Rendering (主页面渲染)
 # =====================================================================
 st.title(t["main_title"])
 st.markdown(t["desc"])
 
-col_lon = t['metric_names']['经度(Longitude)']
-col_lat = t['metric_names']['纬度(Latitude)']
-col_alt = t['metric_names']['高度(Altitude_m)']
+col_lon, col_lat, col_alt = t['metric_names']['经度(Longitude)'], t['metric_names']['纬度(Latitude)'], t['metric_names']['高度(Altitude_m)']
 
-# 实例化 3D 散点云
-fig_3d = px.scatter_3d(
-    df_sample, x=col_lon, y=col_lat, z=col_alt,
-    color=selected_metric,
-    color_continuous_scale=px.colors.diverging.RdYlBu_r,
-    opacity=0.85
-)
-fig_3d.update_layout(
-    scene=dict(xaxis_title=col_lon, yaxis_title=col_lat, zaxis_title=col_alt, bgcolor='white'),
-    paper_bgcolor='white',
-    height=700
-)
+fig_3d = px.scatter_3d(df_sample, x=col_lon, y=col_lat, z=col_alt, color=selected_metric, color_continuous_scale=px.colors.diverging.RdYlBu_r, opacity=0.85)
+fig_3d.update_layout(scene=dict(xaxis_title=col_lon, yaxis_title=col_lat, zaxis_title=col_alt, bgcolor='white'), paper_bgcolor='white', height=700)
 st.plotly_chart(fig_3d, use_container_width=True)
 
-# 2D 数据切片：利用布尔掩码 (Boolean Mask) 过滤指定高度层
 df_slice = df[(df[col_alt] >= final_range[0]) & (df[col_alt] <= final_range[1])]
 st.markdown("---")
 st.subheader(t["title_2d"].format(min=final_range[0], max=final_range[1]))
 
 if not df_slice.empty:
-    fig_2d = px.scatter(
-        df_slice, x=col_lon, y=col_lat,
-        color=selected_metric,
-        color_continuous_scale=px.colors.diverging.RdYlBu_r
-    )
+    fig_2d = px.scatter(df_slice, x=col_lon, y=col_lat, color=selected_metric, color_continuous_scale=px.colors.diverging.RdYlBu_r)
     st.plotly_chart(fig_2d, use_container_width=True)
 else:
     st.warning(t["warn_no_data"])
 
-# =====================================================================
-# 6. Raw Data Export (数据溯源与导出)
-# =====================================================================
 with st.expander(t["expander_raw"]):
-    # 使用虚拟滚动 (Virtual Scrolling) 技术渲染全量数据，取代原先的 .head() 截断
     st.dataframe(df, use_container_width=True)
-
-    # 将 Pandas DataFrame 转换为带有 UTF-8 BOM 签名的字节流，防止 Excel 打开时出现乱码
     csv_data = df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
-
-    # 部署云端下载组件
     st.download_button(
         label=t["btn_download"],
         data=csv_data,
-        file_name="D_AEP_DAL_Flight_Log_Complete.csv",
+        file_name="D_AEP_DAL_Flight_Log.csv",
         mime="text/csv"
     )
