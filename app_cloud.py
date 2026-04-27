@@ -71,8 +71,7 @@ st.markdown(t['desc'])
 
 @st.cache_data
 def load_data():
-    # 核心修改：改为相对路径，这样云端服务器就能找到了
-    file_path = "UAV_Meteorological_Data_20260503_Realistic.csv"
+    file_path = "UAV_Meteorological_Data_20260503.csv"
     df = pd.read_csv(file_path)
 
     rename_dict = {
