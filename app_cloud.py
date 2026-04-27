@@ -24,7 +24,6 @@ t_dict = {
         'h3': "3. Profils Verticaux : Histogrammes Thermiques",
         'p_a': "**📍 Profil A : Décollage / Atterrissage**",
         'p_b': "**📍 Profil B : Sondage Vertical**",
-        'expander': "📊 Journal des données brutes",
         'lon': 'Longitude', 'lat': 'Latitude', 'alt': 'Altitude (m)'
     },
     'English': {
@@ -41,7 +40,6 @@ t_dict = {
         'h3': "3. Vertical Profiles: Thermal Histograms",
         'p_a': "**📍 Profile A: Takeoff / Landing**",
         'p_b': "**📍 Profile B: Vertical Sounding**",
-        'expander': "📊 Raw Data Log",
         'lon': 'Longitude', 'lat': 'Latitude', 'alt': 'Altitude (m)'
     },
     '中文': {
@@ -58,7 +56,6 @@ t_dict = {
         'h3': "3. 垂直剖面：热力直方图",
         'p_a': "**📍 剖面 A：起飞与降落**",
         'p_b': "**📍 剖面 B：垂直定点探测**",
-        'expander': "📊 原始数据日志",
         'lon': '经度', 'lat': '纬度', 'alt': '高度 (m)'
     }
 }
@@ -71,7 +68,7 @@ st.markdown(t['desc'])
 
 @st.cache_data
 def load_data():
-    file_path = "UAV_Meteorological_Data_20260503.csv"
+    file_path = "UAV_Meteorological_Data_20260503_Realistic.csv"
     df = pd.read_csv(file_path)
 
     rename_dict = {
@@ -231,6 +228,3 @@ with col2:
     st.markdown(t['p_b'])
     fig_b = plot_vertical_heat_strip(df_b, "B")
     if fig_b: st.plotly_chart(fig_b, use_container_width=True)
-
-with st.expander(t['expander']):
-    st.dataframe(df[['Horodatage', 'Longitude', 'Latitude', 'Altitude (m)', selected_metric]].head(100))
