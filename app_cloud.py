@@ -9,6 +9,10 @@ import os
 
 st.set_page_config(page_title="Plateforme D.Æᵖ.D.A.L.", layout="wide")
 
+# ==========================================
+# 1. 多语言字典配置 (Multilingual Configuration)
+# ==========================================
+# 【修改注记】：将 H2 标题中的巡航高度阈值从 120m 调整为 40m，以匹配新的 45m 基准巡航高度
 t_dict = {
     'Français': {
         'title': "D.Æᵖ.D.A.L. - Plateforme de Diagnostic de l'Air Local 3D",
@@ -19,7 +23,7 @@ t_dict = {
         'sel_metric': "Sélectionner l'indicateur",
         'metrics': ['Température (°C)', 'Humidité (%)', 'Pression Atmos. (hPa)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'NO2 (µg/m³)', 'SO2 (µg/m³)'],
         'h1': "1. Vue 3D globale : ",
-        'h2': "2. Cartographie 2D de Zone (Croisière > 120m)",
+        'h2': "2. Cartographie 2D de Zone (Croisière > 40m)",
         'warn_2d': "Aucune donnée valide pour {} dans cette zone.",
         'h3': "3. Profils Verticaux : Histogrammes Thermiques",
         'p_a': "**📍 Profil A : Décollage / Atterrissage**",
@@ -35,7 +39,7 @@ t_dict = {
         'sel_metric': "Select the indicator",
         'metrics': ['Temperature (°C)', 'Humidity (%)', 'Atmos Pressure (hPa)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'NO2 (µg/m³)', 'SO2 (µg/m³)'],
         'h1': "1. Global 3D View: ",
-        'h2': "2. 2D Zone Mapping (Cruise > 120m)",
+        'h2': "2. 2D Zone Mapping (Cruise > 40m)",
         'warn_2d': "No valid data for {} in this zone.",
         'h3': "3. Vertical Profiles: Thermal Histograms",
         'p_a': "**📍 Profile A: Takeoff / Landing**",
@@ -51,7 +55,7 @@ t_dict = {
         'sel_metric': "选择数据指标",
         'metrics': ['温度 (°C)', '湿度 (%)', '气压 (hPa)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'NO2 (µg/m³)', 'SO2 (µg/m³)'],
         'h1': "1. 3D 全景视图：",
-        'h2': "2. 二维区域热力图 (巡航高度 > 120m)",
+        'h2': "2. 二维区域热力图 (巡航高度 > 40m)",
         'warn_2d': "该区域无 {} 的有效数据。",
         'h3': "3. 垂直剖面：热力直方图",
         'p_a': "**📍 剖面 A：起飞与降落**",
@@ -66,9 +70,12 @@ t = t_dict[lang]
 st.title(t['title'])
 st.markdown(t['desc'])
 
+# ==========================================
+# 2. 数据加载与预处理 (Data Loading & Preprocessing)
+# ==========================================
 @st.cache_data
 def load_data():
-    file_path = "UAV_Meteorological_Data_20260503.csv"
+    file_path = "UAV_Meteorological_Data_20260503_Realistic_new2.csv"
     df = pd.read_csv(file_path)
 
     rename_dict = {
@@ -110,6 +117,9 @@ selected_metric = display_to_base[selected_display]
 
 df_sample = df
 
+# ==========================================
+# 3. 3D 全景视图渲染 (Global 3D View Rendering)
+# ==========================================
 st.subheader(f"{t['h1']}{selected_display}")
 
 fig_3d = px.scatter_3d(
@@ -129,9 +139,14 @@ fig_3d.update_layout(
 st.plotly_chart(fig_3d, use_container_width=True)
 
 st.markdown("---")
+
+# ==========================================
+# 4. 二维区域热力图 (2D Zone Heatmap)
+# ==========================================
 st.subheader(t['h2'])
 
-df_fw_cruise = df[df['Altitude (m)'] > 120.0]
+# 【核心修改 1】：过滤条件适配新的巡航高度。由于新轨迹巡航在 45m 左右，提取大于 40m 的平飞阶段数据
+df_fw_cruise = df[df['Altitude (m)'] > 40.0]
 df_valid_cruise = df_fw_cruise.dropna(subset=[selected_metric])
 
 if not df_valid_cruise.empty:
@@ -141,6 +156,7 @@ if not df_valid_cruise.empty:
 
     grid_lon, grid_lat = np.mgrid[lons.min():lons.max():100j, lats.min():lats.max():100j]
 
+    # 三次样条插值算法 (Cubic Spline Interpolation) 进行空间平滑
     grid_z = spi.griddata((lons, lats), vals, (grid_lon, grid_lat), method='cubic')
     grid_z_fill = spi.griddata((lons, lats), vals, (grid_lon, grid_lat), method='nearest')
     grid_z = np.where(np.isnan(grid_z), grid_z_fill, grid_z)
@@ -166,17 +182,25 @@ else:
     st.warning(t['warn_2d'].format(selected_display))
 
 st.markdown("---")
+
+# ==========================================
+# 5. 垂直剖面热力直方图 (Vertical Profile Histograms)
+# ==========================================
 st.subheader(t['h3'])
 
 lon_origin, lat_origin = df['Longitude'].iloc[0], df['Latitude'].iloc[0]
-base_lat = 30.4115346
+
+# 【一致性修改】：将纬度基准对齐为底层生成的坐标基准 30.365800（原为 30.4115346），确保距离计算更精确
+base_lat = 30.365800
 lat_m_per_deg = 111320.0
 lon_m_per_deg = 111320.0 * math.cos(math.radians(base_lat))
 
 dist_to_origin = np.sqrt(
     ((df['Longitude'] - lon_origin) * lon_m_per_deg) ** 2 + ((df['Latitude'] - lat_origin) * lat_m_per_deg) ** 2)
 
-mask_dive = df['Altitude (m)'] < 100.0
+# 【核心修改 2】：剖面 B（垂直探测深潜点）识别逻辑变更。
+# 由于深潜谷底目前是 20m 左右，寻找距离起点最远且高度低于 30m 的点作为探测井中心
+mask_dive = df['Altitude (m)'] < 30.0
 idx_dive = dist_to_origin[mask_dive].idxmax()
 lon_dive = df.loc[idx_dive, 'Longitude']
 lat_dive = df.loc[idx_dive, 'Latitude']
@@ -195,7 +219,8 @@ def plot_vertical_heat_strip(df_subset, point_name):
     df_clean['alt_bin'] = df_clean['Altitude (m)'].round(0)
     v_profile = df_clean.groupby('alt_bin')[selected_metric].mean().reset_index()
 
-    all_altitudes = np.arange(0, 151, 1)
+    # 【核心修改 3】：坐标轴高度映射压缩。生成 0 到 50 米的高度网格阵列，取代原先的 0 到 150 米
+    all_altitudes = np.arange(0, 51, 1)
     full_profile = pd.DataFrame({'alt_bin': all_altitudes})
     final_data = pd.merge(full_profile, v_profile, on='alt_bin', how='left')
 
@@ -209,12 +234,13 @@ def plot_vertical_heat_strip(df_subset, point_name):
         connectgaps=False
     ))
 
+    # 【核心修改 4】：动态调整 Y 轴的可视化极限 (Limit Range)，顶部预留 5 米的余量，设置范围为 [0, 55]
     fig.update_layout(
         yaxis_title=t['alt'],
         plot_bgcolor='white', height=550,
         margin=dict(l=50, r=50, b=30, t=10),
         xaxis=dict(showgrid=False, zeroline=False),
-        yaxis=dict(showgrid=True, gridcolor='#F0F0F0', range=[0, 155])
+        yaxis=dict(showgrid=True, gridcolor='#F0F0F0', range=[0, 55])
     )
     return fig
 
