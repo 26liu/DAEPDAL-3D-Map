@@ -22,7 +22,7 @@ t_dict = {
         'sel_metric': "Sélectionner l'indicateur",
         'metrics': ['Température (°C)', 'Humidité (%)', 'Pression Atmos. (hPa)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'NO2 (µg/m³)', 'SO2 (µg/m³)'],
         'h1': "1. Vue 3D globale : ",
-        'h2': "2. Cartographie 2D de Zone (Croisière > 40m)",
+        'h2': "2. Cartographie 2D de Zone",
         'warn_2d': "Aucune donnée valide pour {} dans cette zone.",
         'h3': "3. Profils Verticaux : Histogrammes Thermiques",
         'p_a': "**📍 Profil A : Décollage / Atterrissage**",
@@ -38,7 +38,7 @@ t_dict = {
         'sel_metric': "Select the indicator",
         'metrics': ['Temperature (°C)', 'Humidity (%)', 'Atmos Pressure (hPa)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'NO2 (µg/m³)', 'SO2 (µg/m³)'],
         'h1': "1. Global 3D View: ",
-        'h2': "2. 2D Zone Mapping (Cruise > 40m)",
+        'h2': "2. 2D Zone Mapping",
         'warn_2d': "No valid data for {} in this zone.",
         'h3': "3. Vertical Profiles: Thermal Histograms",
         'p_a': "**📍 Profile A: Takeoff / Landing**",
@@ -54,7 +54,7 @@ t_dict = {
         'sel_metric': "选择数据指标",
         'metrics': ['温度 (°C)', '湿度 (%)', '气压 (hPa)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'NO2 (µg/m³)', 'SO2 (µg/m³)'],
         'h1': "1. 3D 全景视图：",
-        'h2': "2. 二维区域热力图 (巡航高度 > 40m)",
+        'h2': "2. 二维区域热力图",
         'warn_2d': "该区域无 {} 的有效数据。",
         'h3': "3. 垂直剖面：热力直方图",
         'p_a': "**📍 剖面 A：起飞与降落**",
@@ -74,10 +74,6 @@ st.markdown(t['desc'])
 # ==========================================
 @st.cache_data(show_spinner="Chargement des données...")
 def load_data(file_path: str):
-    """
-    【核心修正 1】：将 file_path 作为参数传入，彻底解决 Streamlit 缓存不更新的 bug。
-    一旦你更换了同名文件或更改了路径，系统会自动重新加载最新数据。
-    """
     df = pd.read_csv(file_path)
 
     rename_dict = {
@@ -97,7 +93,6 @@ def load_data(file_path: str):
     return df
 
 try:
-    # 请确保服务器上的这个文件是你最新下载的、符合物理规律的那份数据
     target_csv = "UAV_Meteorological_Data_20260503.csv"
     df = load_data(target_csv)
 except FileNotFoundError:
@@ -160,8 +155,7 @@ if not df_valid_cruise.empty:
     vals = df_valid_cruise[selected_metric].values
 
     grid_lon, grid_lat = np.mgrid[lons.min():lons.max():100j, lats.min():lats.max():100j]
-
-    # 【核心修正 2】：将 cubic 替换为 linear，防止多项式插值造成异常的高温/低压假象点
+    
     grid_z = spi.griddata((lons, lats), vals, (grid_lon, grid_lat), method='linear')
     grid_z_fill = spi.griddata((lons, lats), vals, (grid_lon, grid_lat), method='nearest')
     grid_z = np.where(np.isnan(grid_z), grid_z_fill, grid_z)
