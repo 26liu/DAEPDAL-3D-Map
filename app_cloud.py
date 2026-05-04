@@ -6,7 +6,6 @@ import plotly.graph_objects as go
 import scipy.interpolate as spi
 import math
 import os
-# test
 
 st.set_page_config(page_title="Plateforme D.Æᵖ.D.A.L.", layout="wide")
 
@@ -23,7 +22,7 @@ t_dict = {
         'sel_metric': "Sélectionner l'indicateur",
         'metrics': ['Température (°C)', 'Humidité (%)', 'Pression Atmos. (hPa)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'NO2 (µg/m³)', 'SO2 (µg/m³)'],
         'h1': "1. Vue 3D globale : ",
-        'h2': "2. Cartographie 2D de Zone",
+        'h2': "2. Cartographie 2D de Zone (Croisière > 40m)",
         'warn_2d': "Aucune donnée valide pour {} dans cette zone.",
         'h3': "3. Profils Verticaux : Histogrammes Thermiques",
         'p_a': "**📍 Profil A : Décollage / Atterrissage**",
@@ -39,7 +38,7 @@ t_dict = {
         'sel_metric': "Select the indicator",
         'metrics': ['Temperature (°C)', 'Humidity (%)', 'Atmos Pressure (hPa)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'NO2 (µg/m³)', 'SO2 (µg/m³)'],
         'h1': "1. Global 3D View: ",
-        'h2': "2. 2D Zone Mapping",
+        'h2': "2. 2D Zone Mapping (Cruise > 40m)",
         'warn_2d': "No valid data for {} in this zone.",
         'h3': "3. Vertical Profiles: Thermal Histograms",
         'p_a': "**📍 Profile A: Takeoff / Landing**",
@@ -55,7 +54,7 @@ t_dict = {
         'sel_metric': "选择数据指标",
         'metrics': ['温度 (°C)', '湿度 (%)', '气压 (hPa)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'NO2 (µg/m³)', 'SO2 (µg/m³)'],
         'h1': "1. 3D 全景视图：",
-        'h2': "2. 二维区域热力图",
+        'h2': "2. 二维区域热力图 (巡航高度 > 40m)",
         'warn_2d': "该区域无 {} 的有效数据。",
         'h3': "3. 垂直剖面：热力直方图",
         'p_a': "**📍 剖面 A：起飞与降落**",
@@ -73,9 +72,12 @@ st.markdown(t['desc'])
 # ==========================================
 # 2. 数据加载与预处理 (Data Loading & Preprocessing)
 # ==========================================
-@st.cache_data
-def load_data():
-    file_path = "UAV_Meteorological_Data_20260503.csv"  # 请根据实际文件名调整
+@st.cache_data(show_spinner="Chargement des données...")
+def load_data(file_path: str):
+    """
+    【核心修正 1】：将 file_path 作为参数传入，彻底解决 Streamlit 缓存不更新的 bug。
+    一旦你更换了同名文件或更改了路径，系统会自动重新加载最新数据。
+    """
     df = pd.read_csv(file_path)
 
     rename_dict = {
@@ -95,7 +97,9 @@ def load_data():
     return df
 
 try:
-    df = load_data()
+    # 请确保服务器上的这个文件是你最新下载的、符合物理规律的那份数据
+    target_csv = "UAV_Meteorological_Data_20260503.csv"
+    df = load_data(target_csv)
 except FileNotFoundError:
     st.error(t['err_file'])
     st.stop()
@@ -157,7 +161,8 @@ if not df_valid_cruise.empty:
 
     grid_lon, grid_lat = np.mgrid[lons.min():lons.max():100j, lats.min():lats.max():100j]
 
-    grid_z = spi.griddata((lons, lats), vals, (grid_lon, grid_lat), method='cubic')
+    # 【核心修正 2】：将 cubic 替换为 linear，防止多项式插值造成异常的高温/低压假象点
+    grid_z = spi.griddata((lons, lats), vals, (grid_lon, grid_lat), method='linear')
     grid_z_fill = spi.griddata((lons, lats), vals, (grid_lon, grid_lat), method='nearest')
     grid_z = np.where(np.isnan(grid_z), grid_z_fill, grid_z)
 
@@ -218,7 +223,6 @@ def plot_vertical_heat_strip(df_subset, point_name):
     df_clean['alt_bin'] = df_clean['Altitude (m)'].round(0)
     v_profile = df_clean.groupby('alt_bin')[selected_metric].mean().reset_index()
 
-    # 【核心修正】：废弃写死的 0-50m 网格，改为动态计算当前数据的真实探测极值
     min_alt = int(df_clean['alt_bin'].min())
     max_alt = int(df_clean['alt_bin'].max())
 
@@ -236,8 +240,6 @@ def plot_vertical_heat_strip(df_subset, point_name):
         connectgaps=False
     ))
 
-    # 【核心修正】：Y 轴视图范围自适应数据范围，上下预留 2 米的冗余空间。
-    # 剖面 A 会自适应到大约 [0, 47]，而剖面 B 则会自适应到真实探测带，比如 [18, 47]
     fig.update_layout(
         yaxis_title=t['alt'],
         plot_bgcolor='white', height=550,
